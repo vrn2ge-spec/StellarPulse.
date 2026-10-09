@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" id="htmlRoot">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">ویژوالایزر کهکشانی | Cosmic Audio Visualizer</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Vazirmatn & Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Vazirmatn', 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+        }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.05); }
+        }
+        .recording-pulse {
+            animation: pulseGlow 1.5s infinite ease-in-out;
+        }
+        /* Modal backdrop blur */
+        .modal-backdrop {
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative bg-[#030712] text-gray-100">
+
+    <!-- Language Selection Startup Modal -->
+    <div id="languageModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
+        <div class="glass-panel p-8 rounded-3xl max-w-md w-full text-center shadow-2xl border border-blue-500/40 animate-fade-in">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-globe text-white text-2xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2 text-gray-100">زبان خود را انتخاب کنید</h2>
+            <h3 class="text-lg font-medium text-blue-400 mb-6">Please select your language</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="setLanguage('fa')" class="p-4 rounded-2xl bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 text-white font-semibold transition-all duration-300 flex flex-col items-center gap-2 group">
+                    <span class="text-lg">فارسی</span>
+                    <span class="text-xs text-gray-400 group-hover:text-blue-300">Persian</span>
+                </button>
+                <button onclick="setLanguage('en')" class="p-4 rounded-2xl bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 text-white font-semibold transition-all duration-300 flex flex-col items-center gap-2 group">
+                    <span class="text-lg">English</span>
+                    <span class="text-xs text-gray-400 group-hover:text-blue-300">انگلیسی</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Display Canvas (Responsive to screen) -->
+    <canvas id="visualizerCanvas" class="fixed inset-0 w-full h-full z-0 pointer-events-none"></canvas>
+
+    <!-- Header -->
+    <header class="relative z-10 w-full p-4 md:p-6 flex flex-col sm:flex-row justify-between items-center glass-panel border-b border-blue-500/10 shadow-lg">
+        <div class="flex items-center gap-3 mb-3 sm:mb-0">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-circle-waveform-lines text-white text-xl"></i>
+            </div>
+            <div>
+                <h1 id="headerTitle" class="text-lg md:text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">ویژوالایزر کهکشانی + ضبط 1080p</h1>
+                <p id="headerSubtitle" class="text-xs text-gray-400">ضبط ویدیو اختصاصی Full HD همراه با سیگنال صوتی دایره‌ای</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <!-- Language Toggle Button -->
+            <button id="langToggleBtn" onclick="toggleLanguage()" class="px-3 py-2 text-xs font-medium bg-gray-800/80 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-xl transition-all duration-300 flex items-center gap-1.5" title="Change Language / تغییر زبان">
+                <i class="fa-solid fa-globe"></i>
+                <span id="langToggleText">EN</span>
+            </button>
+            <!-- Record 1080p Button -->
+            <button id="headerRecordBtn" class="px-4 py-2 text-xs md:text-sm font-medium bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl transition-all duration-300 shadow-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                <i id="headerRecordIcon" class="fa-solid fa-record-vinyl"></i>
+                <span id="headerRecordText">ضبط ویدیو 1080p</span>
+            </button>
+            <button id="demoTrackBtn" class="px-4 py-2 text-xs md:text-sm font-medium bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40 rounded-xl transition-all duration-300 shadow-sm flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span id="demoBtnText">موزیک دمو</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="relative z-10 flex-grow flex flex-col items-center justify-center p-4 max-w-4xl mx-auto w-full text-center my-auto">
+        
+        <div id="songInfo" class="mb-6 transition-all duration-500 opacity-95">
+            <span id="trackBadge" class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 mb-2">آماده به کار</span>
+            <h2 id="trackTitle" class="text-xl md:text-2xl font-bold text-gray-100 tracking-wide">آهنگی انتخاب نشده است</h2>
+            <p id="trackSub" class="text-xs md:text-sm text-gray-400 mt-1">یک فایل صوتی آپلود کنید یا دمو را پخش کنید</p>
+        </div>
+
+        <!-- Recording Status & Resolution Indicator -->
+        <div id="recordingStatusBox" class="hidden mb-6 px-6 py-3 glass-panel rounded-2xl border border-blue-500/50 shadow-xl flex items-center gap-3 recording-pulse">
+            <div class="w-3 h-3 rounded-full bg-blue-500 animate-ping"></div>
+            <span id="recordingStatusText" class="text-sm font-semibold text-blue-300">در حال ضبط ویدیو در رزولوشن 1920x1080 (Full HD)...</span>
+            <span id="recordTimer" class="text-sm font-mono text-gray-300">00:00</span>
+        </div>
+
+        <!-- Upload Prompt Card -->
+        <div id="uploadPrompt" class="w-full max-w-md mx-auto glass-panel p-8 rounded-3xl border border-dashed border-blue-500/40 hover:border-blue-400 transition-all duration-300 cursor-pointer shadow-2xl group relative overflow-hidden">
+            <div class="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div class="relative z-10 flex flex-col items-center">
+                <div class="w-16 h-16 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner">
+                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                </div>
+                <h3 id="uploadPromptTitle" class="text-base font-semibold text-gray-200 mb-1">فایل صوتی خود را رها کنید یا کلیک کنید</h3>
+                <p id="uploadPromptSub" class="text-xs text-gray-400 mb-4">فرمت‌های پشتیبانی شده: MP3, WAV, OGG, AAC</p>
+                <label class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium text-xs md:text-sm shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 cursor-pointer transition-all duration-300">
+                    <span id="uploadBtnText">انتخاب فایل صوتی</span>
+                    <input type="file" id="audioFileInput" accept="audio/*" class="hidden">
+                </label>
+            </div>
+        </div>
+
+        <!-- Download Panel -->
+        <div id="downloadPanel" class="hidden mt-4 p-4 glass-panel rounded-2xl border border-green-500/40 flex flex-col items-center gap-3 shadow-2xl animate-fade-in max-w-sm mx-auto">
+            <div id="downloadSuccessText" class="flex items-center gap-2 text-green-400 text-sm font-semibold">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>ویدیو Full HD (1920x1080) با موفقیت ذخیره شد!</span>
+            </div>
+            <a id="downloadLink" download="cosmic-visualizer-1080p.webm" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-500 text-white font-medium text-xs md:text-sm shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all duration-300 flex items-center gap-2">
+                <i class="fa-solid fa-download"></i>
+                <span id="downloadBtnText">دانلود ویدیوی ضبط شده (1080p)</span>
+            </a>
+        </div>
+    </main>
+
+    <!-- Controls Footer -->
+    <footer class="relative z-10 w-full p-4 md:p-6">
+        <div class="max-w-3xl mx-auto glass-panel p-4 rounded-2xl shadow-2xl flex flex-col gap-4 border border-blue-500/20">
+            
+            <!-- Seek Bar -->
+            <div class="flex items-center gap-3 w-full">
+                <span id="currentTime" class="text-xs text-gray-400 min-w-[35px] text-left">0:00</span>
+                <div class="relative flex-grow flex items-center h-6 cursor-pointer group" id="progressBarContainer">
+                    <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div id="progressBar" class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 w-0 transition-all duration-100"></div>
+                    </div>
+                </div>
+                <span id="totalDuration" class="text-xs text-gray-400 min-w-[35px] text-right">0:00</span>
+            </div>
+
+            <!-- Controls Row -->
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                
+                <div class="flex items-center gap-2">
+                    <label class="w-9 h-9 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 flex items-center justify-center cursor-pointer border border-gray-700 transition-all duration-200 text-sm" id="folderLabel" title="تغییر فایل">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <input type="file" id="audioFileInputFooter" accept="audio/*" class="hidden">
+                    </label>
+                    <button id="footerRecordBtn" class="w-9 h-9 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 flex items-center justify-center border border-blue-500/30 transition-all duration-200 text-sm disabled:opacity-40 disabled:cursor-not-allowed" id="footerRecordLabel" title="ضبط ویدیو 1080p" disabled>
+                        <i class="fa-solid fa-record-vinyl"></i>
+                    </button>
+                    <button id="toggleGlowBtn" class="w-9 h-9 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-blue-400 flex items-center justify-center border border-gray-700 transition-all duration-200 text-sm" id="glowLabel" title="درخشش">
+                        <i class="fa-solid fa-bolt"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button id="prevBtn" class="w-10 h-10 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-300 flex items-center justify-center transition-all duration-200 border border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button id="playPauseBtn" class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white flex items-center justify-center shadow-lg shadow-blue-500/40 transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i id="playPauseIcon" class="fa-solid fa-play text-xl ml-0.5"></i>
+                    </button>
+                    <button id="nextBtn" class="w-10 h-10 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-300 flex items-center justify-center transition-all duration-200 border border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button id="muteBtn" class="text-gray-400 hover:text-white transition-colors">
+                        <i id="volumeIcon" class="fa-solid fa-volume-high text-sm"></i>
+                    </button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8" class="w-20 md:w-24 accent-blue-500 h-1.5 bg-gray-800 rounded-lg cursor-pointer">
+                </div>
+
+            </div>
+        </div>
+    </footer>
+
+    <!-- Hidden Audio Element -->
+    <audio id="audioElement" crossorigin="anonymous"></audio>
+
+    <script>
+        // Localization Dictionary
+        const translations = {
+            fa: {
+                pageTitle: "ویژوالایزر کهکشانی | Cosmic Audio Visualizer",
+                headerTitle: "ویژوالایزر کهکشانی + ضبط 1080p",
+                headerSubtitle: "ضبط ویدیو اختصاصی Full HD همراه با سیگنال صوتی دایره‌ای",
+                headerRecordText: "ضبط ویدیو 1080p",
+                headerRecordTextActive: "توقف و ذخیره 1080p",
+                demoBtnText: "موزیک دمو",
+                trackBadge: "آماده به کار",
+                trackTitle: "آهنگی انتخاب نشده است",
+                trackSub: "یک فایل صوتی آپلود کنید یا دمو را پخش کنید",
+                demoTitle: "موزیک کهکشانی (دمو صوتی)",
+                demoSub: "سینتی‌سایزر صوتی فرکانس زنده",
+                demoBadge: "حالت دمو",
+                customBadge: "پخش فایل سفارشی",
+                recordingStatusText: "در حال ضبط ویدیو در رزولوشن 1920x1080 (Full HD)...",
+                uploadPromptTitle: "فایل صوتی خود را رها کنید یا کلیک کنید",
+                uploadPromptSub: "فرمت‌های پشتیبانی شده: MP3, WAV, OGG, AAC",
+                uploadBtnText: "انتخاب فایل صوتی",
+                downloadSuccessText: "ویدیو Full HD (1920x1080) با موفقیت ذخیره شد!",
+                downloadBtnText: "دانلود ویدیوی ضبط شده (1080p)",
+                langToggleText: "EN",
+                folderTitle: "تغییر فایل صوتی",
+                recordTitle: "ضبط ویدیو 1080p",
+                glowTitle: "درخشش کهکشانی"
+            },
+            en: {
+                pageTitle: "Cosmic Audio Visualizer | 1080p Recorder",
+                headerTitle: "Cosmic Audio Visualizer + 1080p",
+                headerSubtitle: "Full HD Video Recording with Circular Audio Waveform",
+                headerRecordText: "Record 1080p Video",
+                headerRecordTextActive: "Stop & Save 1080p",
+                demoBtnText: "Demo Track",
+                trackBadge: "Ready",
+                trackTitle: "No Track Selected",
+                trackSub: "Upload an audio file or play the demo track",
+                demoTitle: "Cosmic Nebula (Audio Demo)",
+                demoSub: "Live Frequency Audio Synthesizer",
+                demoBadge: "Demo Mode",
+                customBadge: "Custom Audio File",
+                recordingStatusText: "Recording video at 1920x1080 (Full HD) resolution...",
+                uploadPromptTitle: "Drop your audio file here or click",
+                uploadPromptSub: "Supported formats: MP3, WAV, OGG, AAC",
+                uploadBtnText: "Select Audio File",
+                downloadSuccessText: "Full HD (1920x1080) video saved successfully!",
+                downloadBtnText: "Download Recorded Video (1080p)",
+                langToggleText: "FA",
+                folderTitle: "Change Audio File",
+                recordTitle: "Record 1080p Video",
+                glowTitle: "Cosmic Glow"
+            }
+        };
+
+        let currentLang = 'fa';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+            
+            // Set direction & html lang
+            const htmlRoot = document.getElementById('htmlRoot');
+            htmlRoot.setAttribute('lang', lang);
+            htmlRoot.setAttribute('dir', lang === 'fa' ? 'rtl' : 'ltr');
+
+            // Update UI elements
+            document.getElementById('pageTitle').textContent = t.pageTitle;
+            document.getElementById('headerTitle').textContent = t.headerTitle;
+            document.getElementById('headerSubtitle').textContent = t.headerSubtitle;
+            document.getElementById('headerRecordText').textContent = isRecording ? t.headerRecordTextActive : t.headerRecordText;
+            document.getElementById('demoBtnText').textContent = t.demoBtnText;
+            document.getElementById('trackBadge').textContent = isDemoMode ? t.demoBadge : (audioElement.src ? t.customBadge : t.trackBadge);
+            if (!audioElement.src && !isDemoMode) {
+                document.getElementById('trackTitle').textContent = t.trackTitle;
+                document.getElementById('trackSub').textContent = t.trackSub;
+            } else if (isDemoMode) {
+                document.getElementById('trackTitle').textContent = t.demoTitle;
+                document.getElementById('trackSub').textContent = t.demoSub;
+            }
+            document.getElementById('recordingStatusText').textContent = t.recordingStatusText;
+            document.getElementById('uploadPromptTitle').textContent = t.uploadPromptTitle;
+            document.getElementById('uploadPromptSub').textContent = t.uploadPromptSub;
+            document.getElementById('uploadBtnText').textContent = t.uploadBtnText;
+            document.getElementById('downloadSuccessText').innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${t.downloadSuccessText}</span>`;
+            document.getElementById('downloadBtnText').textContent = t.downloadBtnText;
+            document.getElementById('langToggleText').textContent = t.langToggleText;
+            document.getElementById('folderLabel').title = t.folderTitle;
+            document.getElementById('footerRecordBtn').title = t.recordTitle;
+            document.getElementById('toggleGlowBtn').title = t.glowTitle;
+
+            // Hide startup modal
+            document.getElementById('languageModal').style.display = 'none';
+        }
+
+        function toggleLanguage() {
+            setLanguage(currentLang === 'fa' ? 'en' : 'fa');
+        }
+
+        const canvas = document.getElementById('visualizerCanvas');
+        const ctx = canvas.getContext('2d');
+        const audioElement = document.getElementById('audioElement');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playPauseIcon = document.getElementById('playPauseIcon');
+        const audioFileInput = document.getElementById('audioFileInput');
+        const audioFileInputFooter = document.getElementById('audioFileInputFooter');
+        const demoTrackBtn = document.getElementById('demoTrackBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeIcon = document.getElementById('volumeIcon');
+        const progressBar = document.getElementById('progressBar');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const currentTimeEl = document.getElementById('currentTime');
+        const totalDurationEl = document.getElementById('totalDuration');
+        const trackTitle = document.getElementById('trackTitle');
+        const trackSub = document.getElementById('trackSub');
+        const trackBadge = document.getElementById('trackBadge');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const toggleGlowBtn = document.getElementById('toggleGlowBtn');
+        
+        const headerRecordBtn = document.getElementById('headerRecordBtn');
+        const headerRecordIcon = document.getElementById('headerRecordIcon');
+        const headerRecordText = document.getElementById('headerRecordText');
+        const footerRecordBtn = document.getElementById('footerRecordBtn');
+        const recordingStatusBox = document.getElementById('recordingStatusBox');
+        const recordTimer = document.getElementById('recordTimer');
+        const downloadPanel = document.getElementById('downloadPanel');
+        const downloadLink = document.getElementById('downloadLink');
+
+        // State Variables
+        let audioCtx = null;
+        let analyser = null;
+        let sourceNode = null;
+        let destNode = null;
+        let isAudioInitialized = false;
+        let isPlaying = false;
+        let isDemoMode = false;
+        let glowEnabled = true;
+
+        // Recording State Variables (Dedicated 1920x1080 off-screen recording canvas)
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let recordStartTime = 0;
+        let recordTimerInterval = null;
+        let offscreenCanvas = null;
+        let offscreenCtx = null;
+
+        // Starfield & Particles
+        let stars = [];
+        const numStars = 300;
+        let ringParticles = [];
+        const numRingParticles = 200;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function initOffscreenCanvas() {
+            if (!offscreenCanvas) {
+                offscreenCanvas = document.createElement('canvas');
+                offscreenCanvas.width = 1920;
+                offscreenCanvas.height = 1080;
+                offscreenCtx = offscreenCanvas.getContext('2d');
+            }
+        }
+        initOffscreenCanvas();
+
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < numStars; i++) {
+                stars.push({
+                    x: Math.random() * 1920,
+                    y: Math.random() * 1080,
+                    size: Math.random() * 2 + 0.3,
+                    alpha: Math.random() * 0.7 + 0.3,
+                    twinkleSpeed: Math.random() * 0.02 + 0.005
+                });
+            }
+        }
+        initStars();
+
+        function initRingParticles() {
+            ringParticles = [];
+            for (let i = 0; i < numRingParticles; i++) {
+                ringParticles.push({
+                    angle: (i / numRingParticles) * Math.PI * 2,
+                    offsetY: (Math.random() - 0.5) * 50,
+                    size: Math.random() * 1.8 + 0.5,
+                    alpha: Math.random() * 0.5 + 0.2
+                });
+            }
+        }
+        initRingParticles();
+
+        function initAudioContext() {
+            if (isAudioInitialized) return;
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 512;
+                analyser.smoothingTimeConstant = 0.85;
+
+                sourceNode = audioCtx.createMediaElementSource(audioElement);
+                destNode = audioCtx.createMediaStreamDestination();
+
+                sourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                analyser.connect(destNode);
+
+                isAudioInitialized = true;
+            } catch (e) {
+                console.error("Web Audio API error:", e);
+            }
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "0:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        function handleAudioFile(file) {
+            if (!file) return;
+            if (isRecording) stopRecording();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            initAudioContext();
+
+            const fileURL = URL.createObjectURL(file);
+            audioElement.src = fileURL;
+            audioElement.load();
+
+            const t = translations[currentLang];
+            trackTitle.textContent = file.name.replace(/\.[^/.]+$/, "");
+            trackSub.textContent = `${currentLang === 'fa' ? 'فایل محلی' : 'Local File'} • ${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+            trackBadge.textContent = t.customBadge;
+            uploadPrompt.style.display = 'none';
+            downloadPanel.classList.add('hidden');
+
+            headerRecordBtn.disabled = false;
+            footerRecordBtn.disabled = false;
+
+            playAudio();
+        }
+
+        audioFileInput.addEventListener('change', (e) => handleAudioFile(e.target.files[0]));
+        audioFileInputFooter.addEventListener('change', (e) => handleAudioFile(e.target.files[0]));
+
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleAudioFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function toggleRecording() {
+            if (!isRecording) {
+                try {
+                    if (!isPlaying) {
+                        playAudio();
+                    }
+
+                    const canvasStream = offscreenCanvas.captureStream(30);
+                    const audioStream = destNode.stream;
+                    const combinedStream = new MediaStream([
+                        ...canvasStream.getVideoTracks(),
+                        ...audioStream.getAudioTracks()
+                    ]);
+
+                    recordedChunks = [];
+                    let options = { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 8000000 };
+                    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                        options = { mimeType: 'video/webm' };
+                    }
+
+                    mediaRecorder = new MediaRecorder(combinedStream, options);
+
+                    mediaRecorder.ondataavailable = (e) => {
+                        if (e.data && e.data.size > 0) {
+                            recordedChunks.push(e.data);
+                        }
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        const videoURL = URL.createObjectURL(blob);
+                        
+                        downloadLink.href = videoURL;
+                        downloadLink.download = `cosmic-visualizer-1080p-${Date.now()}.webm`;
+                        downloadPanel.classList.remove('hidden');
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+
+                    const t = translations[currentLang];
+                    headerRecordBtn.classList.replace('bg-blue-600/20', 'bg-blue-600/60');
+                    headerRecordBtn.classList.add('animate-pulse');
+                    headerRecordText.textContent = t.headerRecordTextActive;
+                    headerRecordIcon.className = "fa-solid fa-stop";
+                    footerRecordBtn.classList.replace('bg-blue-600/20', 'bg-blue-600/60');
+                    recordingStatusBox.classList.remove('hidden');
+                    downloadPanel.classList.add('hidden');
+
+                    recordStartTime = Date.now();
+                    recordTimerInterval = setInterval(() => {
+                        const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+                        recordTimer.textContent = formatTime(elapsed);
+                    }, 1000);
+
+                } catch (err) {
+                    console.error("1080p Recording error:", err);
+                    alert(currentLang === 'fa' ? "ضبط 1080p در این مرورگر پشتیبانی نمی‌شود." : "1080p recording is not supported in this browser.");
+                }
+            } else {
+                stopRecording();
+            }
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            isRecording = false;
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            if (recordTimerInterval) {
+                clearInterval(recordTimerInterval);
+                recordTimerInterval = null;
+            }
+
+            const t = translations[currentLang];
+            headerRecordBtn.classList.replace('bg-blue-600/60', 'bg-blue-600/20');
+            headerRecordBtn.classList.remove('animate-pulse');
+            headerRecordText.textContent = t.headerRecordText;
+            headerRecordIcon.className = "fa-solid fa-record-vinyl";
+            footerRecordBtn.classList.replace('bg-blue-600/60', 'bg-blue-600/20');
+            recordingStatusBox.classList.add('hidden');
+        }
+
+        headerRecordBtn.addEventListener('click', toggleRecording);
+        footerRecordBtn.addEventListener('click', toggleRecording);
+
+        function playDemoTrack() {
+            if (isRecording) stopRecording();
+            initAudioContext();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            isDemoMode = true;
+            const t = translations[currentLang];
+            trackTitle.textContent = t.demoTitle;
+            trackSub.textContent = t.demoSub;
+            trackBadge.textContent = t.demoBadge;
+            uploadPrompt.style.display = 'none';
+            downloadPanel.classList.add('hidden');
+
+            headerRecordBtn.disabled = false;
+            footerRecordBtn.disabled = false;
+
+            try {
+                if (window.demoSource) {
+                    window.demoSource.stop();
+                }
+                
+                const sampleRate = audioCtx.sampleRate;
+                const duration = 15;
+                const buffer = audioCtx.createBuffer(2, sampleRate * duration, sampleRate);
+                
+                for (let channel = 0; channel < 2; channel++) {
+                    const data = buffer.getChannelData(channel);
+                    for (let i = 0; i < buffer.length; i++) {
+                        const tSec = i / sampleRate;
+                        const f1 = 130.81;
+                        const f2 = 196.00;
+                        const f3 = 233.08;
+                        const f4 = 293.66;
+                        
+                        let val = Math.sin(tSec * f1 * 2 * Math.PI) * 0.15 +
+                                  Math.sin(tSec * f2 * 2 * Math.PI) * 0.12 +
+                                  Math.sin(tSec * f3 * 2 * Math.PI) * 0.10 +
+                                  Math.sin(tSec * f4 * 2 * Math.PI) * 0.08;
+                        
+                        const envelope = 0.5 + 0.5 * Math.sin(tSec * 1.5 * Math.PI);
+                        const noise = (Math.random() * 2 - 1) * 0.02 * Math.sin(tSec * 0.5);
+
+                        data[i] = (val * envelope + noise) * 0.6;
+                    }
+                }
+
+                const demoSourceNode = audioCtx.createBufferSource();
+                demoSourceNode.buffer = buffer;
+                demoSourceNode.loop = true;
+                
+                try { sourceNode.disconnect(); } catch(err) {}
+
+                demoSourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                analyser.connect(destNode);
+                demoSourceNode.start(0);
+                window.demoSource = demoSourceNode;
+
+                isPlaying = true;
+                playPauseIcon.className = "fa-solid fa-pause text-xl";
+                playPauseBtn.disabled = false;
+                document.getElementById('nextBtn').disabled = false;
+                document.getElementById('prevBtn').disabled = false;
+
+                let demoCurrent = 0;
+                if (window.demoInterval) clearInterval(window.demoInterval);
+                window.demoInterval = setInterval(() => {
+                    if (!isPlaying) return;
+                    demoCurrent = (demoCurrent + 1) % duration;
+                    currentTimeEl.textContent = formatTime(demoCurrent);
+                    totalDurationEl.textContent = formatTime(duration);
+                    progressBar.style.width = `${(demoCurrent / duration) * 100}%`;
+                }, 1000);
+
+            } catch (err) {
+                console.error("Demo synth error:", err);
+            }
+        }
+
+        demoTrackBtn.addEventListener('click', playDemoTrack);
+
+        function playAudio() {
+            if (!audioElement.src) return;
+            if (isDemoMode && window.demoSource) {
+                try { window.demoSource.stop(); if (window.demoInterval) clearInterval(window.demoInterval); isDemoMode = false; } catch(e) {}
+            }
+            audioElement.play().then(() => {
+                isPlaying = true;
+                playPauseIcon.className = "fa-solid fa-pause text-xl";
+                playPauseBtn.disabled = false;
+                document.getElementById('nextBtn').disabled = false;
+                document.getElementById('prevBtn').disabled = false;
+            }).catch(err => {
+                console.error("Playback prevented:", err);
+            });
+        }
+
+        function pauseAudio() {
+            if (isDemoMode && window.demoSource) {
+                try { window.demoSource.stop(); if (window.demoInterval) clearInterval(window.demoInterval); } catch(e) {}
+            }
+            audioElement.pause();
+            isPlaying = false;
+            playPauseIcon.className = "fa-solid fa-play text-xl ml-0.5";
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            if (isDemoMode) {
+                if (isPlaying) pauseAudio(); else playDemoTrack();
+                return;
+            }
+            if (isPlaying) pauseAudio(); else playAudio();
+        });
+
+        audioElement.addEventListener('timeupdate', () => {
+            if (isDemoMode) return;
+            const current = audioElement.currentTime;
+            const duration = audioElement.duration || 0;
+            currentTimeEl.textContent = formatTime(current);
+            totalDurationEl.textContent = formatTime(duration);
+            if (duration > 0) {
+                progressBar.style.width = `${(current / duration) * 100}%`;
+            }
+        });
+
+        audioElement.addEventListener('ended', () => {
+            isPlaying = false;
+            playPauseIcon.className = "fa-solid fa-play text-xl ml-0.5";
+            progressBar.style.width = '0%';
+            if (isRecording) stopRecording();
+        });
+
+        progressBarContainer.addEventListener('click', (e) => {
+            if (isDemoMode) return;
+            const rect = progressBarContainer.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            if (audioElement.duration) {
+                audioElement.currentTime = pos * audioElement.duration;
+            }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            audioElement.volume = val;
+            if (val == 0) {
+                volumeIcon.className = "fa-solid fa-volume-xmark text-sm text-red-400";
+            } else if (val < 0.5) {
+                volumeIcon.className = "fa-solid fa-volume-low text-sm";
+            } else {
+                volumeIcon.className = "fa-solid fa-volume-high text-sm";
+            }
+        });
+
+        let lastVolume = 0.8;
+        muteBtn.addEventListener('click', () => {
+            if (audioElement.volume > 0) {
+                lastVolume = audioElement.volume;
+                audioElement.volume = 0;
+                volumeSlider.value = 0;
+                volumeIcon.className = "fa-solid fa-volume-xmark text-sm text-red-400";
+            } else {
+                audioElement.volume = lastVolume;
+                volumeSlider.value = lastVolume;
+                volumeIcon.className = "fa-solid fa-volume-high text-sm";
+            }
+        });
+
+        toggleGlowBtn.addEventListener('click', () => {
+            glowEnabled = !glowEnabled;
+            toggleGlowBtn.classList.toggle('text-blue-400', glowEnabled);
+            toggleGlowBtn.classList.toggle('text-gray-500', !glowEnabled);
+        });
+
+        // Universal render function that paints to any target canvas and context at any resolution
+        function renderFrameToContext(targetCtx, width, height) {
+            targetCtx.fillStyle = '#030712';
+            targetCtx.fillRect(0, 0, width, height);
+
+            // 1. Draw Starfield
+            targetCtx.fillStyle = '#ffffff';
+            stars.forEach(star => {
+                star.alpha += star.twinkleSpeed;
+                if (star.alpha > 1 || star.alpha < 0.2) {
+                    star.twinkleSpeed = -star.twinkleSpeed;
+                }
+                targetCtx.globalAlpha = Math.abs(star.alpha);
+                targetCtx.beginPath();
+                targetCtx.arc(star.x * (width / 1920), star.y * (height / 1080), star.size * (width / 1920), 0, Math.PI * 2);
+                targetCtx.fill();
+            });
+            targetCtx.globalAlpha = 1.0;
+
+            let dataArray = new Uint8Array(128);
+            let averageVolume = 0;
+            if (analyser && (isPlaying || isDemoMode)) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    sum += dataArray[i];
+                }
+                averageVolume = sum / dataArray.length;
+            }
+
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const baseRadius = Math.min(width, height) * 0.28;
+            const pulse = (averageVolume / 255) * 55 * (width / 1920);
+            const currentRadius = baseRadius + pulse;
+
+            // 2. Draw Outer Nebula Glow
+            if (glowEnabled) {
+                const gradient = targetCtx.createRadialGradient(centerX, centerY, currentRadius * 0.8, centerX, centerY, currentRadius * 1.3);
+                gradient.addColorStop(0, 'rgba(37, 99, 235, 0.18)');
+                gradient.addColorStop(0.5, 'rgba(6, 182, 212, 0.08)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                targetCtx.fillStyle = gradient;
+                targetCtx.beginPath();
+                targetCtx.arc(centerX, centerY, currentRadius * 1.4, 0, Math.PI * 2);
+                targetCtx.fill();
+            }
+
+            // 3. Draw Particle Mesh Tunnel
+            targetCtx.save();
+            targetCtx.translate(centerX, centerY);
+            const time = Date.now() * 0.0005;
+            targetCtx.rotate(time * 0.5);
+
+            ringParticles.forEach((p) => {
+                const angle = p.angle + time;
+                const radiusVar = currentRadius + (p.offsetY * (width / 1920)) + Math.sin(angle * 4 + time * 2) * (averageVolume * 0.25);
+                const x = Math.cos(angle) * radiusVar;
+                const y = Math.sin(angle) * radiusVar;
+
+                targetCtx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+                targetCtx.beginPath();
+                targetCtx.arc(x, y, p.size * (width / 1920), 0, Math.PI * 2);
+                targetCtx.fill();
+            });
+            targetCtx.restore();
+
+            // 4. Draw Main Circular Waveform Ring
+            const numPoints = 180;
+            const angleStep = (Math.PI * 2) / numPoints;
+            const secondaryColor = '#60a5fa';
+            const glowColor = '#3b82f6';
+
+            // Outer Glow Ring
+            targetCtx.save();
+            targetCtx.strokeStyle = glowEnabled ? 'rgba(59, 130, 246, 0.5)' : 'rgba(59, 130, 246, 0.2)';
+            targetCtx.lineWidth = 14 * (width / 1920);
+            targetCtx.shadowBlur = glowEnabled ? 40 * (width / 1920) : 0;
+            targetCtx.shadowColor = glowColor;
+            targetCtx.beginPath();
+
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = i * angleStep;
+                const dataIndex = Math.floor((i / numPoints) * (dataArray.length / 2));
+                const freqVal = dataArray[dataIndex] || 0;
+                
+                const waveOffset = (freqVal / 255) * 75 * (width / 1920) + Math.sin(angle * 6 + time * 4) * 10;
+                const r = currentRadius + waveOffset;
+
+                const x = centerX + Math.cos(angle) * r;
+                const y = centerY + Math.sin(angle) * r;
+
+                if (i === 0) targetCtx.moveTo(x, y);
+                else targetCtx.lineTo(x, y);
+            }
+            targetCtx.closePath();
+            targetCtx.stroke();
+            targetCtx.restore();
+
+            // Core Ring Layer
+            targetCtx.save();
+            targetCtx.strokeStyle = secondaryColor;
+            targetCtx.lineWidth = 4 * (width / 1920);
+            targetCtx.shadowBlur = glowEnabled ? 25 * (width / 1920) : 0;
+            targetCtx.shadowColor = '#93c5fd';
+            targetCtx.beginPath();
+
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = i * angleStep;
+                const dataIndex = Math.floor((i / numPoints) * (dataArray.length / 2));
+                const freqVal = dataArray[dataIndex] || 0;
+                
+                const waveOffset = (freqVal / 255) * 75 * (width / 1920) + Math.sin(angle * 6 + time * 4) * 10;
+                const r = currentRadius + waveOffset;
+
+                const x = centerX + Math.cos(angle) * r;
+                const y = centerY + Math.sin(angle) * r;
+
+                if (i === 0) targetCtx.moveTo(x, y);
+                else targetCtx.lineTo(x, y);
+            }
+            targetCtx.closePath();
+            targetCtx.stroke();
+            targetCtx.restore();
+
+            // Inner Refraction Ring
+            targetCtx.save();
+            targetCtx.strokeStyle = 'rgba(34, 211, 238, 0.4)';
+            targetCtx.lineWidth = 2 * (width / 1920);
+            targetCtx.beginPath();
+
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = i * angleStep;
+                const dataIndex = Math.floor((i / numPoints) * (dataArray.length / 2));
+                const freqVal = dataArray[dataIndex] || 0;
+                
+                const waveOffset = (freqVal / 255) * 50 * (width / 1920) - Math.sin(angle * 4 - time * 3) * 8;
+                const r = currentRadius * 0.92 + waveOffset;
+
+                const x = centerX + Math.cos(angle) * r;
+                const y = centerY + Math.sin(angle) * r;
+
+                if (i === 0) targetCtx.moveTo(x, y);
+                else targetCtx.lineTo(x, y);
+            }
+            targetCtx.closePath();
+            targetCtx.stroke();
+            targetCtx.restore();
+        }
+
+        function drawVisualizer() {
+            requestAnimationFrame(drawVisualizer);
+
+            // 1. Render to screen canvas (responsive size)
+            renderFrameToContext(ctx, canvas.width, canvas.height);
+
+            // 2. If recording is active, render simultaneously to the dedicated 1920x1080 offscreen canvas
+            if (isRecording && offscreenCtx) {
+                renderFrameToContext(offscreenCtx, 1920, 1080);
+            }
+        }
+
+        window.onload = function() {
+            drawVisualizer();
+        };
+    </script>
+</body>
+</html>
